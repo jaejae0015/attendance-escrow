@@ -1,0 +1,19 @@
+node_modules/
+# 루트 package.json은 0바이트로 손상되어 읽거나 지울 수 없다. hh/package.json을 쓴다.
+/package.json
+/scripts/_read_sepolia.js
+/web_old/
+/web_corrupt/
+.env
+.env.*
+artifacts/
+cache/
+hh/contracts/
+hh/test/
+typechain-types/
+coverage/
+coverage.json
+.DS_Store
+Thumbs.db
+*.log
+!.env.example

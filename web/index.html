@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://cdn.jsdelivr.net; font-src https://cdn.jsdelivr.net; img-src 'self' data:; connect-src 'self' http://127.0.0.1:8545 https://ethereum-sepolia-rpc.publicnode.com https://1rpc.io https://sepolia.drpc.org https://cdn.jsdelivr.net; base-uri 'none'; form-action 'none'">
+<title>출석 보증금 에스크로</title>
+<meta name="description" content="보증금을 스마트 컨트랙트에 맡기고, 스터디원 상호 확인으로 출석을 판정해 환급과 결석 분배를 자동으로 처리하는 스터디 운영 서비스예요.">
+<meta name="theme-color" content="#1B2430">
+<meta property="og:type" content="website">
+<meta property="og:title" content="출석 보증금 에스크로">
+<meta property="og:description" content="총무 없이 컨트랙트가 정산하는 스터디 출석 보증금. 블록체인기술과 응용 4조 팀 과제.">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<a class="skip" href="#main">본문으로 건너뛰기</a>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v9h11v-9"/></symbol>
+  <symbol id="i-deposit" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="2.5"/><path d="M4 11h16"/><path d="M15.5 15h1.5"/></symbol>
+  <symbol id="i-proof" viewBox="0 0 24 24"><path d="M7 4h7l4 4v12H7z"/><path d="M14 4v4h4"/><path d="m9.8 14 1.7 1.7 3-3.2"/></symbol>
+  <symbol id="i-attest" viewBox="0 0 24 24"><circle cx="9" cy="9" r="3.2"/><path d="M3.5 19c.6-3.3 2.7-5 5.5-5s4.9 1.7 5.5 5"/><path d="m15.5 11 1.8 1.8 3.2-3.6"/></symbol>
+  <symbol id="i-settle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5v9"/><path d="M15 9.5c-.7-.9-1.700-1.300-3-1.300-1.700 0-3 .8-3 2s1.300 1.700 3 1.800 3 .7 3 2-1.300 2-3 2c-1.300 0-2.400-.5-3-1.400"/></symbol>
+  <symbol id="i-excuse" viewBox="0 0 24 24"><rect x="4.500" y="6" width="15" height="14" rx="2.500"/><path d="M4.500 10.500h15M8.500 4v4M15.500 4v4"/><path d="m9.500 15 1.800 1.700 3.200-3.400"/></symbol>
+  <symbol id="i-log" viewBox="0 0 24 24"><path d="M5 6.500h14M5 12h14M5 17.500h9"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4.500 8.500A2.500 2.500 0 0 1 7 6h10v3"/><rect x="4.500" y="9" width="15.500" height="10" rx="2.500"/><path d="M16 14h1"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M15 9V6.500A1.500 1.500 0 0 0 13.500 5h-7A1.500 1.500 0 0 0 5 6.500v7A1.500 1.500 0 0 0 6.500 15H9"/></symbol>
+</svg>
+
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <img src="./favicon.svg" alt="" width="30" height="30">
+      <div>
+        <h1>출석 보증금 에스크로</h1>
+        <p id="topLead">Alchemy University 이더리움 스터디</p>
+      </div>
+    </div>
+    <button class="wallet off" id="walletChip" type="button" aria-haspopup="dialog">
+      <i aria-hidden="true"></i><span id="walletText">지갑 연결</span>
+    </button>
+  </header>
+
+  <nav class="tabs" aria-label="주요 화면">
+    <a href="#home" data-tab="home"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>홈</span><i class="dot"></i></a>
+    <a href="#deposit" data-tab="deposit"><svg class="ic" aria-hidden="true"><use href="#i-deposit"/></svg><span>예치</span><i class="dot"></i></a>
+    <a href="#proof" data-tab="proof"><svg class="ic" aria-hidden="true"><use href="#i-proof"/></svg><span>증빙</span><i class="dot"></i></a>
+    <a href="#attest" data-tab="attest"><svg class="ic" aria-hidden="true"><use href="#i-attest"/></svg><span>확인</span><i class="dot"></i></a>
+    <a href="#settle" data-tab="settle"><svg class="ic" aria-hidden="true"><use href="#i-settle"/></svg><span>정산</span><i class="dot"></i></a>
+    <a href="#excuse" data-tab="excuse"><svg class="ic" aria-hidden="true"><use href="#i-excuse"/></svg><span>공결</span></a>
+    <a href="#log" data-tab="log"><svg class="ic" aria-hidden="true"><use href="#i-log"/></svg><span>기록</span></a>
+  </nav>
+
+  <main id="main" tabindex="-1">
+    <!-- 연결 전 안내 + 시나리오 전환 -->
+    <aside class="notice" id="sampleBar" aria-label="샘플 화면 안내">
+      <p id="sampleText"><strong>샘플 화면이에요.</strong> 실제 거래는 일어나지 않아요.</p>
+      <div class="scenarios" role="group" aria-label="샘플 시나리오">
+        <button type="button" data-sc="deposit">예치</button>
+        <button type="button" data-sc="proof">증빙 제출</button>
+        <button type="button" data-sc="attest">상호 확인</button>
+        <button type="button" data-sc="ready">정산 대기</button>
+        <button type="button" data-sc="settled">정산 완료</button>
+        <button type="button" data-sc="finished">종료</button>
+      </div>
+    </aside>
+
+    <!-- ① 홈 -->
+    <section data-screen="home" aria-labelledby="h-home">
+      <h2 id="h-home" tabindex="-1">내 스터디</h2>
+      <p class="lede" id="homeSub">-</p>
+      <div class="card dark">
+        <div class="k">남은 보증금</div>
+        <div class="amt"><span id="homeLocked">0</span><small>SDT</small></div>
+        <div class="prog" role="progressbar" aria-label="회차 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="homeProg"><i id="homeBar"></i></div>
+        <div class="sub" id="homeBarText">-</div>
+      </div>
+      <div class="card">
+        <div class="k" id="taskK">-</div>
+        <div class="t" id="taskT">-</div>
+        <p class="d" id="taskD">-</p>
+        <ol class="phases" id="phaseSteps" hidden></ol>
+        <button class="btn" data-slot="home" type="button">-</button>
+      </div>
+      <div class="card">
+        <div class="row"><span class="k">회차별 내 출석</span><span class="k" id="roundSummary"></span></div>
+        <ol class="rounds" id="roundGrid"></ol>
+        <ul class="legend" aria-hidden="true">
+          <li><i class="s1"></i>출석</li><li><i class="s2"></i>지각</li><li><i class="s3"></i>결석</li><li><i class="s4"></i>공결</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="split"><span>누적 수령</span><b class="pos" id="homeReturned">+0</b></div>
+        <ul class="list" id="homeList"></ul>
+        <button class="btn ghost small" id="btnWithdraw" type="button" hidden>인출하기</button>
+      </div>
+    </section>
+
+    <!-- ② 보증금 예치 -->
+    <section data-screen="deposit" aria-labelledby="h-deposit" hidden>
+      <h2 id="h-deposit" tabindex="-1">보증금 예치</h2>
+      <p class="lede" id="depSub">-</p>
+      <div class="card" id="createCard" hidden>
+        <div class="k">스터디 만들기</div>
+        <p class="d">스터디원 6명의 지갑을 등록하면 72시간 예치 기한이 열려요. 좌석 순서가 스터디원 A부터예요.</p>
+        <div class="fields stack" id="rosterFields"></div>
+        <button class="btn small" id="btnCreate" type="button">이 6명으로 스터디 등록</button>
+      </div>
+      <div class="card center">
+        <div class="k">예치할 금액</div>
+        <div class="amt"><span id="depTotal">0</span><small>SDT</small></div>
+        <p class="d" id="depDesc">-</p>
+      </div>
+      <p class="note" id="depNote">-</p>
+      <button class="btn flush" data-slot="deposit" type="button">-</button>
+      <div class="card">
+        <div class="row"><span class="k">예치 현황</span><span class="chip sm" id="depChip">0 / 0명</span></div>
+        <ul class="list" id="depList"></ul>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div><div class="k">내 지갑 잔액</div><div class="balance"><span id="sdtBal">0</span> SDT</div></div>
+          <button class="sbtn" id="btnFaucet" type="button">테스트 SDT 받기</button>
+        </div>
+        <p class="hint">시연용 토큰이에요. 테스트 SDT는 한 번에 35,000이 나와요. 예치할 때 사용 승인과 예치, 서명이 두 번 이어서 떠요.</p>
+        <button class="btn ghost small" id="btnCancel" type="button" hidden>예치 기한이 지났어요 · 취소하고 전액 돌려받기</button>
+      </div>
+    </section>
+
+    <!-- ③ 증빙 제출 -->
+    <section data-screen="proof" aria-labelledby="proofH1" hidden>
+      <h2 id="proofH1" tabindex="-1">증빙 제출</h2>
+      <p class="lede" id="proofSub">-</p>
+      <div class="card">
+        <div class="steps">
+          <button class="step" id="step1" type="button" aria-pressed="false"><b class="off"></b><span>진도 100% 화면 캡처</span><em>눌러서 체크</em></button>
+          <button class="step" id="step2" type="button" aria-pressed="false"><b class="off"></b><span>단체방 공유 완료</span><em>눌러서 체크</em></button>
+          <label class="step" id="step3"><b class="off"></b><span id="step3Text">캡처 파일 선택</span><em id="step3Em">탭해서 선택</em><input class="file" type="file" id="proofFile" accept="image/*"></label>
+        </div>
+        <div class="box" id="proofBox">파일을 고르면 이름과 시각이 여기에 표시돼요</div>
+        <p class="warn-line" id="dupWarn" role="alert" hidden>다른 스터디원이 이미 제출한 것과 같은 파일이에요. 본인 캡처인지 확인해 주세요.</p>
+      </div>
+      <div class="card dark">
+        <div class="k">온체인에 남는 값 (캡처 SHA-256 해시)</div>
+        <div class="hash empty" id="proofHash">파일을 고르면 이 기기에서 해시를 계산해요</div>
+        <p class="sub top">원본 파일은 어디에도 올라가지 않아요. 단체방 원본과 이 값을 대조하면 위조 여부를 확인할 수 있어요.</p>
+      </div>
+      <p class="due" id="proofDue">-</p>
+      <button class="btn flush" data-slot="proof" type="button">-</button>
+      <div class="card" id="myAttCard" hidden>
+        <div class="row"><span class="k">내 증빙을 확인해 준 스터디원</span><span class="chip sm" id="myAttChip">0 / 3</span></div>
+        <ul class="list" id="myAttesters"></ul>
+      </div>
+    </section>
+
+    <!-- ④ 상호 확인 -->
+    <section data-screen="attest" aria-labelledby="h-attest" hidden>
+      <h2 id="h-attest" tabindex="-1">상호 확인</h2>
+      <p class="lede" id="attSub">-</p>
+      <div class="card dark"><div class="bar"><span>내 증빙 확인</span><b><span id="attN">0</span> / <span id="attD">3</span>명</b></div></div>
+      <div class="card">
+        <ul class="list" id="attestList"></ul>
+        <input class="file" type="file" id="verifyFile" accept="image/*" tabindex="-1" aria-hidden="true">
+      </div>
+      <p class="due" id="attDue">-</p>
+      <p class="hint">단체방 캡처를 ‘대조’에 넣으면 제출된 해시와 같은 파일인지 이 기기에서 바로 확인해요. 내 증빙은 내가 확인할 수 없고, 확인은 한 사람당 한 번이며 취소되지 않아요.</p>
+    </section>
+
+    <!-- ⑤ 회차 정산 -->
+    <section data-screen="settle" aria-labelledby="setH1" hidden>
+      <h2 id="setH1" tabindex="-1">정산</h2>
+      <p class="lede" id="setSub">-</p>
+      <div class="chips" id="setChips"></div>
+      <div class="card center" id="setAmtCard">
+        <div class="k">이번 회차 내 수령</div>
+        <div class="amt teal"><span id="setMine">-</span><small>SDT</small></div>
+      </div>
+      <div class="card" id="setCard">
+        <div class="split"><span>회차 몫 환급</span><b id="setRefund">-</b></div>
+        <div class="split"><span id="setShareLabel">결석 분배</span><b class="pos" id="setShare">-</b></div>
+        <div class="split"><span>현재 끝전 이월</span><b id="setRemain">-</b></div>
+      </div>
+      <div class="card dark" id="sbtBadge" hidden><div class="sbt" id="sbtBadgeText"></div></div>
+      <div class="card">
+        <div class="t flat" id="nextTitle">다음 회차</div>
+        <p class="d" id="nextDesc">-</p>
+        <div class="fields stack" id="openRoundFields" hidden>
+          <label>제출 마감<input type="datetime-local" id="submitDeadline"></label>
+          <label>확인 마감<input type="datetime-local" id="attestDeadline"></label>
+        </div>
+        <p class="hint" id="openRoundHint" hidden>제출 마감은 지금보다 뒤, 확인 마감은 제출 마감보다 뒤여야 해요. 제출 마감 후 24시간은 지각으로 접수돼요.</p>
+        <button class="btn" data-slot="settle" type="button">-</button>
+        <button class="btn ghost small" id="btnDispute" type="button" hidden>이의 제기 · 정산을 24시간 보류</button>
+      </div>
+      <div class="card" id="judgeCard" hidden>
+        <div class="k">스터디원별 판정</div>
+        <ul class="list" id="judgeList"></ul>
+      </div>
+    </section>
+
+    <!-- ⑥ 공결 -->
+    <section data-screen="excuse" aria-labelledby="h-excuse" hidden>
+      <h2 id="h-excuse" tabindex="-1">공결</h2>
+      <p class="lede">안건이 통과되면 그 회차는 정시 출석으로 인정돼요</p>
+      <div id="voteWrap">
+        <div class="card">
+          <div class="row"><div class="t flat">스터디원 E · 5회차</div><span class="chip sm mute">예시</span></div>
+          <p class="d">사유: 시험 일정 겹침 (증빙 첨부)</p>
+        </div>
+        <div class="card">
+          <div class="row"><span class="strong">찬성 <span id="voteYes">2</span></span><span class="k">기준 3표</span></div>
+          <div class="vote" id="voteBar" aria-hidden="true"></div>
+          <div class="k" id="voteSub">신청자 제외 5명 중 과반</div>
+        </div>
+        <div class="two">
+          <button class="btn outline" id="voteNo" type="button">반대</button>
+          <button class="btn blue" id="voteOk" type="button">찬성</button>
+        </div>
+        <p class="due mute">마감 18시간 남음</p>
+        <p class="note grey">이 투표는 화면 예시예요. 지갑을 연결하면 컨트랙트 안건으로 찬성·반대하고, 시간이 지난 뒤 실행해요.</p>
+      </div>
+      <div class="card">
+        <div class="k">공결 처리된 건</div>
+        <ul class="list" id="excuseList"></ul>
+      </div>
+      <div class="card" id="excuseAdmin" hidden>
+        <div class="row"><span class="k">안건 올리기</span><span class="chip sm blue">스터디원</span></div>
+        <div class="fields stack">
+          <label>종류<select id="proposalType"><option value="0">공결</option><option value="1">허위 증빙</option><option value="2">지갑 교체</option></select></label>
+          <label id="excuseRoundField">회차<input type="number" id="excuseRound" inputmode="numeric" min="1" max="7" value="1"></label>
+          <label>대상 스터디원<select id="excuseMember"></select></label>
+          <label id="newWalletField" hidden>새 지갑<input id="newWallet" type="text" autocomplete="off" spellcheck="false" placeholder="0x..."></label>
+        </div>
+        <button class="btn small" id="btnExcuse" type="button">안건 등록</button>
+        <p class="hint">공결과 허위 증빙은 열린 회차가 정산되기 전에만 올릴 수 있어요. 공결이 통과되면 그 회차는 정시 출석으로 인정돼요. 투표는 24시간이고, 공결·허위 증빙은 대상 제외 3표, 지갑 교체는 4표가 필요해요.</p>
+      </div>
+      <div class="card" id="proposalCard" hidden>
+        <div class="k">진행 중인 안건</div>
+        <ul class="list" id="proposalList"></ul>
+      </div>
+    </section>
+
+    <!-- ⑦ 기록 -->
+    <section data-screen="log" aria-labelledby="h-log" hidden>
+      <h2 id="h-log" tabindex="-1">기록</h2>
+      <p class="lede">세폴리아에 남은 코인 이동과 활동이에요. 이더스캔 링크로 해당 트랜잭션을 열 수 있어요.</p>
+      <div class="card">
+        <div class="k">코인 이력</div>
+        <ul class="list" id="coinHistory" aria-label="입출금과 정산 이력"></ul>
+      </div>
+      <div class="card">
+        <div class="k">활동 기록</div>
+        <ul class="list" id="eventLog" tabindex="0" aria-label="활동 기록"></ul>
+      </div>
+      <div class="card">
+        <div class="k">컨트랙트 주소</div>
+        <ul class="list" id="contractList"></ul>
+        <p class="hint" id="netLabel">-</p>
+      </div>
+      <p class="hint">테스트넷 토큰으로만 운영해요. 실제 자산이 아니고, 캡처 원본과 개인정보는 온체인에 올리지 않아요.</p>
+    </section>
+  </main>
+</div>
+
+<div class="demo" id="demoPanel" hidden>
+  <span>체인 시각 앞당기기</span>
+  <button data-ff="60" type="button">+1분</button><button data-ff="600" type="button">+10분</button>
+  <button data-ff="3600" type="button">+1시간</button><button data-ff="86400" type="button">+1일</button>
+  <button data-ff="604800" type="button">+7일</button>
+</div>
+
+<div class="toast" id="msg" role="status" aria-live="polite" hidden></div>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+  <div class="sheet-head">
+    <h2 id="sheetTitle">지갑 연결</h2>
+    <button class="close" id="sheetClose" type="button" aria-label="닫기">×</button>
+  </div>
+  <p class="d" id="connectHint"></p>
+  <div id="connectForm">
+    <div class="fields stack" id="modeField">
+      <label>연결 방식<select id="mode"></select></label>
+      <label id="demoAccountField">계정<select id="demoAccount"></select></label>
+    </div>
+    <button class="btn" id="btnConnect" type="button">연결하기</button>
+  </div>
+  <div id="connectedInfo" hidden>
+    <div class="split"><span>주소</span><b class="mono" id="sheetAddr">-</b></div>
+    <div class="split"><span>네트워크</span><b id="sheetNet">-</b></div>
+    <button class="btn outline" id="btnDisconnect" type="button">연결 해제</button>
+  </div>
+  <a class="btn outline" id="installLink" href="https://metamask.io/download/" target="_blank" rel="noopener noreferrer" hidden>MetaMask 설치 안내</a>
+</dialog>
+
+<noscript><p class="noscript">이 서비스는 JavaScript가 필요해요. 브라우저 설정에서 켜 주세요.</p></noscript>
+
+<script src="./ethers.umd.min.js"></script>
+<script src="./config.js"></script>
+<script src="./abi.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
